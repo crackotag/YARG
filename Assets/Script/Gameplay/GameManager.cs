@@ -90,6 +90,9 @@ namespace YARG.Gameplay
         public bool IsSongStarted { get; private set; } = false;
 
         private SongRunner _songRunner;
+        private VocalFxTimeline _vocalFx;
+        internal VocalFxTimeline VocalFx => _vocalFx ??= VocalFxTimeline.Load(Song);
+
         private float _appliedSongSpeed = float.NaN;
 
         /// <remarks>
