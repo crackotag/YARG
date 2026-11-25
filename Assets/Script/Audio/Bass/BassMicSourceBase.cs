@@ -156,7 +156,7 @@ namespace YARG.Audio.BASS
             }
         }
 
-        public void SetVocalFx(VocalFxPreset preset)
+        public void SetVocalFx(VocalFxSettings preset)
         {
             lock (_lock)
             {
@@ -167,7 +167,7 @@ namespace YARG.Audio.BASS
             }
         }
 
-        protected abstract void SetVocalFxCore(VocalFxPreset preset);
+        protected abstract void SetVocalFxCore(VocalFxSettings preset);
 
         public abstract bool Reset();
 

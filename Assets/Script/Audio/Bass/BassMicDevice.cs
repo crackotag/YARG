@@ -82,7 +82,13 @@ namespace YARG.Audio.BASS
         {
             lock (_lifecycleLock)
             {
-                return _analyzer.DequeueOutputFrame(out frame);
+                bool available = _analyzer.DequeueOutputFrame(out frame);
+                if (available && !frame.IsHit && frame.Pitch > 0)
+                {
+                    _pitchMidi = frame.PitchAsMidiNote;
+                    _pitchTime = frame.Time;
+                }
+                return available;
             }
         }
 
@@ -98,14 +104,26 @@ namespace YARG.Audio.BASS
 
         public override void SetReverbLevel(float wet) => _source.SetReverbLevel(wet);
 
-        private VocalFxPreset _vocalFx;
+        private double _pitchTime = double.NegativeInfinity;
+        private float _pitchMidi;
+        private VocalFxSettings _vocalFx = new(VocalFxPreset.Standard);
 
-        internal void SetVocalFx(VocalFxPreset preset)
+        internal void SetVocalFx(VocalFxPreset preset, float x = 0.5f, float y = 0.5f, float delta = 0f)
         {
-            if (_vocalFx != preset)
+            float ratio = 1f;
+            if (preset == VocalFxPreset.AutoTune && InputManager.CurrentInputTime - _pitchTime < 0.15)
             {
-                _source.SetVocalFx(preset);
-                _vocalFx = preset;
+                float target = MathF.Pow(2f, (MathF.Round(_pitchMidi) - _pitchMidi) * x / 12f);
+                float response = 0.16f - 0.155f * y;
+                float previous = _vocalFx.Preset == preset ? _vocalFx.PitchRatio : 1f;
+                ratio = previous + (target - previous) * (1f - MathF.Exp(-delta / response));
+            }
+
+            var settings = new VocalFxSettings(preset, x, y, ratio);
+            if (!_vocalFx.Matches(settings))
+            {
+                _source.SetVocalFx(settings);
+                _vocalFx = settings;
             }
         }
 

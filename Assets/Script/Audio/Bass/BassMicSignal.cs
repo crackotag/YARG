@@ -124,13 +124,13 @@ namespace YARG.Audio.BASS
             lChannel = FXChannelFlags.All,
         };
 
-        private static readonly EchoParameters VocalDelay = new()
+        private readonly EchoParameters _vocalDelay = new()
         {
             fDryMix = 1f, fWetMix = 0.35f, fFeedback = 0.32f, fDelay = 0.30f,
             lChannel = FXChannelFlags.All,
         };
 
-        private static readonly DistortionParameters VocalDrive = new()
+        private readonly DistortionParameters _vocalDrive = new()
         {
             fDrive = 0.6f, fDryMix = 0.65f, fWetMix = 0.15f, fFeedback = 0f, fVolume = 0.55f,
             lChannel = FXChannelFlags.All,
@@ -159,6 +159,9 @@ namespace YARG.Audio.BASS
 
         private int _echoFx;
         private int _driveFx;
+        private BassPitchShiftDsp? _pitchShift;
+        private int _talkboxHandle;
+        private VocalTalkbox? _talkbox;
         private VocalFxPreset _preset;
         private float _standardReverbWet;
 
@@ -344,6 +347,7 @@ namespace YARG.Audio.BASS
                     Bass.StreamFree(recording.Key);
                 }
                 _recordingEffects.Clear();
+                _pitchShift?.Dispose();
                 _reverb.Dispose();
                 _noiseGate.Dispose();
                 FreeStream(ref _analysisHandle);
@@ -481,46 +485,86 @@ namespace YARG.Audio.BASS
             _reverb.SetParams(MONITOR_REVERB_DRY_MIX, wet, MONITOR_REVERB_ROOM_SIZE, MONITOR_REVERB_DAMP,
                 MONITOR_REVERB_WIDTH);
 
-        public void SetPreset(VocalFxPreset preset)
+        public void SetPreset(VocalFxSettings settings)
         {
             lock (_streamLock)
             {
-                if (_monitorHandle == 0 || preset == _preset)
+                if (_monitorHandle == 0)
                 {
                     return;
                 }
 
-                if (_driveFx != 0)
+                var preset = settings.Preset;
+                bool changed = preset != _preset;
+                if (changed)
                 {
-                    if (!Bass.ChannelRemoveFX(_monitorHandle, _driveFx))
+                    if (_driveFx != 0)
                     {
-                        YargLogger.LogError($"Could not remove vocal distortion on '{_name}': {Bass.LastError}");
-                        return;
+                        if (!Bass.ChannelRemoveFX(_monitorHandle, _driveFx))
+                        {
+                            YargLogger.LogError($"Could not remove distortion on '{_name}': {Bass.LastError}");
+                            return;
+                        }
+                        _driveFx = 0;
                     }
-                    _driveFx = 0;
+                    if (_talkboxHandle != 0)
+                    {
+                        if (!Bass.ChannelRemoveDSP(_monitorHandle, _talkboxHandle))
+                        {
+                            YargLogger.LogError($"Could not remove talkbox on '{_name}': {Bass.LastError}");
+                            return;
+                        }
+                        _talkboxHandle = 0;
+                        _talkbox = null;
+                    }
+                    _pitchShift?.Dispose();
+                    _pitchShift = null;
+                    if (_preset == VocalFxPreset.Delay || preset == VocalFxPreset.Delay)
+                        Bass.FXReset(_echoFx);
+                    if (_preset == VocalFxPreset.Delay && !Bass.FXSetParameters(_echoFx, MonitorEchoParams))
+                        YargLogger.LogError($"Could not restore vocal echo on '{_name}'");
+                    if (_preset == VocalFxPreset.Reverb || preset == VocalFxPreset.Reverb)
+                        _reverb.RequestReset();
+                    if (_preset == VocalFxPreset.Reverb)
+                        SetMonitorReverb(_standardReverbWet);
                 }
 
-                if (preset == VocalFxPreset.Delay || _preset == VocalFxPreset.Delay)
+                float x = settings.X, y = settings.Y;
+                switch (preset)
                 {
-                    Bass.FXReset(_echoFx);
-                    if (!Bass.FXSetParameters(_echoFx, preset == VocalFxPreset.Delay ? VocalDelay : MonitorEchoParams))
-                    {
-                        YargLogger.LogError($"Could not set vocal delay on '{_name}': {Bass.LastError}");
-                    }
-                }
-
-                if (preset == VocalFxPreset.Reverb || _preset == VocalFxPreset.Reverb)
-                {
-                    _reverb.RequestReset();
-                    if (!SetMonitorReverb(preset == VocalFxPreset.Reverb ? 0.75f : _standardReverbWet))
-                    {
-                        YargLogger.LogError($"Could not set vocal reverb on '{_name}'");
-                    }
-                }
-
-                if (preset == VocalFxPreset.Distortion)
-                {
-                    _driveFx = BassHelpers.FXAddParameters(_monitorHandle, EffectType.Distortion, VocalDrive, priority: 3);
+                    case VocalFxPreset.Reverb:
+                        _reverb.SetParams(MONITOR_REVERB_DRY_MIX, 1.5f * y, 0.12f + 0.60f * x,
+                            MONITOR_REVERB_DAMP, MONITOR_REVERB_WIDTH);
+                        break;
+                    case VocalFxPreset.Delay:
+                        _vocalDelay.fDelay = 0.05f + 0.50f * x;
+                        _vocalDelay.fFeedback = 0.64f * y;
+                        Bass.FXSetParameters(_echoFx, _vocalDelay);
+                        break;
+                    case VocalFxPreset.Distortion:
+                        _vocalDrive.fDrive = 0.2f + 0.8f * x;
+                        _vocalDrive.fWetMix = 0.30f * y;
+                        _vocalDrive.fDryMix = 1f - 0.70f * y;
+                        if (_driveFx == 0)
+                            _driveFx = BassHelpers.FXAddParameters(_monitorHandle, EffectType.Distortion, _vocalDrive, priority: 3);
+                        else
+                            Bass.FXSetParameters(_driveFx, _vocalDrive);
+                        break;
+                    case VocalFxPreset.AutoTune:
+                        if (changed)
+                            _pitchShift = BassPitchShiftDsp.Attach(_monitorHandle, priority: 3);
+                        _pitchShift?.SetRatio(settings.PitchRatio);
+                        break;
+                    case VocalFxPreset.Talkbox:
+                        if (changed && _talkboxHandle == 0)
+                        {
+                            _talkbox = new VocalTalkbox(SampleRate);
+                            _talkboxHandle = Bass.ChannelSetDSP(_monitorHandle, _talkbox.Process, IntPtr.Zero, 3);
+                            if (_talkboxHandle == 0)
+                                YargLogger.LogError($"Could not attach talkbox on '{_name}': {Bass.LastError}");
+                        }
+                        _talkbox?.SetControls(x, y);
+                        break;
                 }
                 _preset = preset;
             }

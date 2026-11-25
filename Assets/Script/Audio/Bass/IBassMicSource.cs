@@ -20,7 +20,7 @@ namespace YARG.Audio.BASS
         void ReleaseRecordingChannel(int handle);
         bool SetMonitoringLevel(float volume);
         bool SetReverbLevel(float wet);
-        void SetVocalFx(VocalFxPreset preset);
+        void SetVocalFx(VocalFxSettings preset);
         bool Reset();
         MicBufferInfo? GetBufferInfo();
     }
