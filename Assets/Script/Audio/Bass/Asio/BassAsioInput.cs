@@ -155,9 +155,18 @@ namespace YARG.Audio.BASS.Asio
             return true;
         }
 
+        internal void SetVocalFx(VocalFxPreset preset)
+        {
+            if (_claimed)
+            {
+                _signal?.SetPreset(preset);
+            }
+        }
+
         internal void Release()
         {
             _signal?.SetMonitoringLevel(0);
+            SetVocalFx(VocalFxPreset.Standard);
             _claimed = false;
         }
 

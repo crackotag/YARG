@@ -17,6 +17,7 @@ namespace YARG.Audio.BASS.Asio
         private BassAsioInput _input;
         private float _monitoringLevel;
         private float _reverbLevel;
+        private VocalFxPreset _preset;
 
         public BassAsioMicSource(BassAsioMics owner, string driverId, BassAsioInput input, InputDeviceInfo info)
             : base(info.Name, info.DisplayName, info.Channel)
@@ -62,6 +63,12 @@ namespace YARG.Audio.BASS.Asio
             return _input.SetReverbLevel(wet);
         }
 
+        protected override void SetVocalFxCore(VocalFxPreset preset)
+        {
+            _preset = preset;
+            _input.SetVocalFx(preset);
+        }
+
         public override bool Reset()
         {
             lock (SyncRoot)
@@ -103,6 +110,7 @@ namespace YARG.Audio.BASS.Asio
                     YargLogger.LogWarning($"Failed to restore monitoring for ASIO microphone '{DisplayName}'");
                 }
                 _input.SetReverbLevel(_reverbLevel);
+                _input.SetVocalFx(_preset);
             }
 
             RaiseInputChanged();
