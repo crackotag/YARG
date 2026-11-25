@@ -1078,6 +1078,7 @@ MonoBehaviour:
   _noFailButton: {fileID: 3974099309711397898}
   _venuePostProcessingButton: {fileID: 7520963447652256042}
   _volumePauseSettingPrefab: {fileID: -8693196744517643411, guid: 24a963b7c0e99274fbace94c7c237fb0, type: 3}
+  _vocalFxButtonPrefab: {fileID: 5535251001142144674, guid: 0e2af23c2e7465444a3fb84a06d425ae, type: 3}
   _intPauseSettingPrefab: {fileID: 3409319213755494670, guid: 9655e3b12bad24e388e0a957b41fcca2, type: 3}
   _togglePauseSettingPrefab: {fileID: 4187394943278295409, guid: 308d3ce23f5214213beba54e23222217, type: 3}
 --- !u!224 &4220475146792831268 stripped
