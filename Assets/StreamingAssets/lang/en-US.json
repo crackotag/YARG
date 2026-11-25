@@ -1360,6 +1360,13 @@
                 "Skip": "Skip"
             },
             "QuickSettings": {
+                "VocalFx": {
+                    "Auto": "Vocal FX · Auto",
+                    "Standard": "Vocal FX · Standard",
+                    "Reverb": "Vocal FX · Reverb",
+                    "Delay": "Vocal FX · Delay",
+                    "Distortion": "Vocal FX · Distortion"
+                },
                 "AudioSettings": "Audio Settings",
                 "EditHud": "Edit HUD",
                 "NoFail": {
