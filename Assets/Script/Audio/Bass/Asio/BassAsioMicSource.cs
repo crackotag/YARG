@@ -17,7 +17,7 @@ namespace YARG.Audio.BASS.Asio
         private BassAsioInput _input;
         private float _monitoringLevel;
         private float _reverbLevel;
-        private VocalFxPreset _preset;
+        private VocalFxSettings _preset = new(VocalFxPreset.Standard);
 
         public BassAsioMicSource(BassAsioMics owner, string driverId, BassAsioInput input, InputDeviceInfo info)
             : base(info.Name, info.DisplayName, info.Channel)
@@ -63,7 +63,7 @@ namespace YARG.Audio.BASS.Asio
             return _input.SetReverbLevel(wet);
         }
 
-        protected override void SetVocalFxCore(VocalFxPreset preset)
+        protected override void SetVocalFxCore(VocalFxSettings preset)
         {
             _preset = preset;
             _input.SetVocalFx(preset);
