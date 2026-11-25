@@ -85,7 +85,7 @@ namespace YARG.Audio.BASS.Wasapi
             return true;
         }
 
-        protected override void SetVocalFxCore(VocalFxPreset preset) => _signal.SetPreset(preset);
+        protected override void SetVocalFxCore(VocalFxSettings preset) => _signal.SetPreset(preset);
 
         public override bool Reset()
         {
