@@ -1365,7 +1365,9 @@
                     "Standard": "Vocal FX · Standard",
                     "Reverb": "Vocal FX · Reverb",
                     "Delay": "Vocal FX · Delay",
-                    "Distortion": "Vocal FX · Distortion"
+                    "Distortion": "Vocal FX · Distortion",
+                    "AutoTune": "Vocal FX · Auto-Tune",
+                    "Talkbox": "Vocal FX · Talkbox"
                 },
                 "AudioSettings": "Audio Settings",
                 "EditHud": "Edit HUD",
