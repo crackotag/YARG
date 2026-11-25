@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using YARG.Audio.BASS;
 using YARG.Core;
 using YARG.Core.Audio;
 using YARG.Core.Chart;
@@ -56,6 +57,45 @@ namespace YARG.Gameplay.Player
         private InstrumentDifficulty<VocalNote> OriginalNoteTrack { get; set; }
 
         private MicInputContext _inputContext;
+        private VocalFxTimeline _vocalFx;
+        private int _singerIndex;
+        internal bool HasVocalFx => _vocalFx != null;
+        internal VocalFxPreset? ManualPreset { get; private set; }
+
+        internal void CycleVocalFx()
+        {
+            ManualPreset = ManualPreset switch
+            {
+                null => VocalFxPreset.Standard,
+                VocalFxPreset.Standard => VocalFxPreset.Reverb,
+                VocalFxPreset.Reverb => VocalFxPreset.Delay,
+                VocalFxPreset.Delay => VocalFxPreset.Distortion,
+                _ => null,
+            };
+
+            UpdateVocalFx();
+        }
+
+        private void UpdateVocalFx()
+        {
+            var preset = ManualPreset ?? _vocalFx.At(_singerIndex, GameManager.SongTime);
+            foreach (var device in Player.DeviceInfo.Microphones)
+            {
+                if (device is BassMicDevice mic)
+                {
+                    mic.SetVocalFx(preset);
+                }
+            }
+        }
+
+        public override void GameplayUpdate()
+        {
+            if (HasVocalFx)
+            {
+                UpdateVocalFx();
+            }
+            base.GameplayUpdate();
+        }
 
         private VocalNote _lastTargetNote;
         private double?   _lastHitTime;
@@ -191,6 +231,11 @@ namespace YARG.Gameplay.Player
             {
                 _inputContext = new MicInputContext(player.DeviceInfo.Microphones, GameManager);
                 _inputContext.Start();
+                if (!player.Profile.IsBot)
+                {
+                    _singerIndex = vocalIndex;
+                    _vocalFx = GameManager.VocalFx;
+                }
             }
 
             Engine = CreateEngine();
@@ -209,6 +254,16 @@ namespace YARG.Gameplay.Player
         protected override void FinishDestruction()
         {
             _inputContext?.Stop();
+            if (HasVocalFx)
+            {
+                foreach (var device in Player.DeviceInfo.Microphones)
+                {
+                    if (device is BassMicDevice mic)
+                    {
+                        mic.SetVocalFx(VocalFxPreset.Standard);
+                    }
+                }
+            }
         }
 
         protected override void OnMenuInput(YargPlayer _, ref GameInput input)
