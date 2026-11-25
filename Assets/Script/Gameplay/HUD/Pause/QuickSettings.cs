@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Serialization;
 using YARG.Core.Logging;
+using YARG.Gameplay.Player;
 using YARG.Localization;
 using YARG.Menu.Navigation;
 using YARG.Player;
@@ -45,6 +46,9 @@ namespace YARG.Gameplay.HUD
         [Space]
         [SerializeField]
         private IntPauseSetting _intPauseSettingPrefab;
+
+        [SerializeField]
+        private NavigatableButton _vocalFxButtonPrefab;
 
         [Space]
         [SerializeField]
@@ -136,6 +140,32 @@ namespace YARG.Gameplay.HUD
                 : "Enable Venue Post Processing";
         }
 
+        private void AddVocalFxButtons()
+        {
+            foreach (var player in GameManager.Players)
+            {
+                if (player is not VocalsPlayer singer || !singer.HasVocalFx)
+                {
+                    continue;
+                }
+
+                var button = Instantiate(_vocalFxButtonPrefab, _subSettingsContainer);
+                var label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+                void RefreshLabel()
+                {
+                    string mode = singer.ManualPreset?.ToString() ?? "Auto";
+                    label.text = $"{singer.Player.Profile.Name} · {Localize.Key("Menu.Pause.QuickSettings.VocalFx." + mode)}";
+                }
+                RefreshLabel();
+                button.SetOnClickEvent(() =>
+                {
+                    singer.CycleVocalFx();
+                    RefreshLabel();
+                });
+                _subSettingsNavGroup.AddNavigatable(button.gameObject);
+            }
+        }
+
         private void OpenSubSettings(List<string> settings, IntSetting extraIntSetting = null)
         {
             // Destroy all of the options (except for the back button)
@@ -196,6 +226,11 @@ namespace YARG.Gameplay.HUD
                     songOffset.Initialize("SongOffset", extraIntSetting);
                     _subSettingsNavGroup.AddNavigatable(songOffset.gameObject);
                 }
+            }
+
+            if (settings == _soundSettings)
+            {
+                AddVocalFxButtons();
             }
 
             _subSettingsNavGroup.SelectFirst();

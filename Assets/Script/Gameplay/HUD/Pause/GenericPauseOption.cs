@@ -14,7 +14,7 @@ namespace YARG.Gameplay.HUD
 
         public void Awake()
         {
-            if (_localizationKey == string.Empty)
+            if (string.IsNullOrEmpty(_localizationKey))
             {
                 return;
             }
