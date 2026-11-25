@@ -124,6 +124,18 @@ namespace YARG.Audio.BASS
             lChannel = FXChannelFlags.All,
         };
 
+        private static readonly EchoParameters VocalDelay = new()
+        {
+            fDryMix = 1f, fWetMix = 0.35f, fFeedback = 0.32f, fDelay = 0.30f,
+            lChannel = FXChannelFlags.All,
+        };
+
+        private static readonly DistortionParameters VocalDrive = new()
+        {
+            fDrive = 0.6f, fDryMix = 0.65f, fWetMix = 0.15f, fFeedback = 0f, fVolume = 0.55f,
+            lChannel = FXChannelFlags.All,
+        };
+
         private static readonly CompressorParameters MonitorLimiterParams = new()
         {
             fThreshold = -1.0f,
@@ -144,6 +156,11 @@ namespace YARG.Audio.BASS
         private const float MONITOR_REVERB_ROOM_SIZE = 0.42f;
         private const float MONITOR_REVERB_DAMP = 0.35f;
         private const float MONITOR_REVERB_WIDTH = 0.0f;
+
+        private int _echoFx;
+        private int _driveFx;
+        private VocalFxPreset _preset;
+        private float _standardReverbWet;
 
         private readonly string          _name;
         private readonly BassNoiseGateDsp _noiseGate;
@@ -234,7 +251,7 @@ namespace YARG.Audio.BASS
                     return false;
                 }
 
-                if (withEffects && !AddMonitoringEffects(handle))
+                if (withEffects && !AddMonitoringEffects(handle, out _))
                 {
                     FreeStream(ref handle);
                     return false;
@@ -369,7 +386,7 @@ namespace YARG.Audio.BASS
                     return null;
                 }
 
-                if (!AddMonitoringEffects(monitorHandle))
+                if (!AddMonitoringEffects(monitorHandle, out int echoFx))
                 {
                     YargLogger.LogFormatError("Failed to add dynamics to mic '{0}' monitor split: {1}", name,
                         Bass.LastError);
@@ -398,7 +415,11 @@ namespace YARG.Audio.BASS
                 int sourceChannels = info.Channels > 0 ? info.Channels : 1;
                 var mapCopy = channelMap == null ? null : (int[]) channelMap.Clone();
                 var signal = new BassMicSignal(name, sampleRate, sourceHandle, sourceChannels, mapCopy,
-                    monitorHandle, analysisHandle, noiseGate, reverb);
+                    monitorHandle, analysisHandle, noiseGate, reverb)
+                {
+                    _echoFx = echoFx,
+                    _standardReverbWet = GetReverbWet(),
+                };
                 monitorHandle = 0;
                 analysisHandle = 0;
                 noiseGate = null;
@@ -442,14 +463,66 @@ namespace YARG.Audio.BASS
 
         public void SetReverbLevel(float wet)
         {
-            _reverb.SetParams(MONITOR_REVERB_DRY_MIX, wet, MONITOR_REVERB_ROOM_SIZE, MONITOR_REVERB_DAMP,
-                MONITOR_REVERB_WIDTH);
             lock (_streamLock)
             {
+                _standardReverbWet = wet;
+                if (_preset != VocalFxPreset.Reverb)
+                {
+                    SetMonitorReverb(wet);
+                }
                 foreach (var pair in _recordingEffects)
                 {
                     pair.Value.SetReverbWet(wet);
                 }
+            }
+        }
+
+        private bool SetMonitorReverb(float wet) =>
+            _reverb.SetParams(MONITOR_REVERB_DRY_MIX, wet, MONITOR_REVERB_ROOM_SIZE, MONITOR_REVERB_DAMP,
+                MONITOR_REVERB_WIDTH);
+
+        public void SetPreset(VocalFxPreset preset)
+        {
+            lock (_streamLock)
+            {
+                if (_monitorHandle == 0 || preset == _preset)
+                {
+                    return;
+                }
+
+                if (_driveFx != 0)
+                {
+                    if (!Bass.ChannelRemoveFX(_monitorHandle, _driveFx))
+                    {
+                        YargLogger.LogError($"Could not remove vocal distortion on '{_name}': {Bass.LastError}");
+                        return;
+                    }
+                    _driveFx = 0;
+                }
+
+                if (preset == VocalFxPreset.Delay || _preset == VocalFxPreset.Delay)
+                {
+                    Bass.FXReset(_echoFx);
+                    if (!Bass.FXSetParameters(_echoFx, preset == VocalFxPreset.Delay ? VocalDelay : MonitorEchoParams))
+                    {
+                        YargLogger.LogError($"Could not set vocal delay on '{_name}': {Bass.LastError}");
+                    }
+                }
+
+                if (preset == VocalFxPreset.Reverb || _preset == VocalFxPreset.Reverb)
+                {
+                    _reverb.RequestReset();
+                    if (!SetMonitorReverb(preset == VocalFxPreset.Reverb ? 0.75f : _standardReverbWet))
+                    {
+                        YargLogger.LogError($"Could not set vocal reverb on '{_name}'");
+                    }
+                }
+
+                if (preset == VocalFxPreset.Distortion)
+                {
+                    _driveFx = BassHelpers.FXAddParameters(_monitorHandle, EffectType.Distortion, VocalDrive, priority: 3);
+                }
+                _preset = preset;
             }
         }
 
@@ -458,8 +531,9 @@ namespace YARG.Audio.BASS
         private static ReverbMode GetReverbMode() =>
             SettingsManager.Settings?.CurrentReverbMode ?? ReverbMode.Performance;
 
-        private static bool AddMonitoringEffects(int handle)
+        private static bool AddMonitoringEffects(int handle, out int echoFx)
         {
+            echoFx = 0;
             if (BassHelpers.FXAddParameters(handle, EffectType.BQF, MonitorHighPass1Params, priority: 12) == 0)
             {
                 return false;
@@ -510,7 +584,8 @@ namespace YARG.Audio.BASS
                 return false;
             }
 
-            if (BassHelpers.FXAddParameters(handle, EffectType.Echo, MonitorEchoParams, priority: 2) == 0)
+            echoFx = BassHelpers.FXAddParameters(handle, EffectType.Echo, MonitorEchoParams, priority: 2);
+            if (echoFx == 0)
             {
                 return false;
             }

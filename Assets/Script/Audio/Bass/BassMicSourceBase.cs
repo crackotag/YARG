@@ -156,6 +156,19 @@ namespace YARG.Audio.BASS
             }
         }
 
+        public void SetVocalFx(VocalFxPreset preset)
+        {
+            lock (_lock)
+            {
+                if (!_disposed)
+                {
+                    SetVocalFxCore(preset);
+                }
+            }
+        }
+
+        protected abstract void SetVocalFxCore(VocalFxPreset preset);
+
         public abstract bool Reset();
 
         public MicBufferInfo? GetBufferInfo()

@@ -98,6 +98,17 @@ namespace YARG.Audio.BASS
 
         public override void SetReverbLevel(float wet) => _source.SetReverbLevel(wet);
 
+        private VocalFxPreset _vocalFx;
+
+        internal void SetVocalFx(VocalFxPreset preset)
+        {
+            if (_vocalFx != preset)
+            {
+                _source.SetVocalFx(preset);
+                _vocalFx = preset;
+            }
+        }
+
         public override MicId Id => new(_source.BaseName, _source.Channel);
 
         public override SerializedMic Serialize() => new(Id);
