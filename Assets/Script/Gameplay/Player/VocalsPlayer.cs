@@ -60,19 +60,12 @@ namespace YARG.Gameplay.Player
         private VocalFxTimeline _vocalFx;
         private int _singerIndex;
         internal bool HasVocalFx => _vocalFx != null;
-        internal VocalFxPreset? ManualPreset { get; private set; }
+        private VocalFxWheel _wheel;
+        internal VocalFxPreset? ManualPreset => _wheel?.Selection;
 
         internal void CycleVocalFx()
         {
-            ManualPreset = ManualPreset switch
-            {
-                null => VocalFxPreset.Standard,
-                VocalFxPreset.Standard => VocalFxPreset.Reverb,
-                VocalFxPreset.Reverb => VocalFxPreset.Delay,
-                VocalFxPreset.Delay => VocalFxPreset.Distortion,
-                _ => null,
-            };
-
+            _wheel.Cycle();
             UpdateVocalFx();
         }
 
@@ -83,7 +76,7 @@ namespace YARG.Gameplay.Player
             {
                 if (device is BassMicDevice mic)
                 {
-                    mic.SetVocalFx(preset);
+                    mic.SetVocalFx(preset, _wheel.Values.x, _wheel.Values.y, Time.unscaledDeltaTime);
                 }
             }
         }
@@ -92,11 +85,20 @@ namespace YARG.Gameplay.Player
         {
             if (HasVocalFx)
             {
+                if (GameManager.Started && !GameManager.Paused && !GameManager.Rewinding)
+                    _wheel.Read(Player.DeviceInfo);
                 UpdateVocalFx();
             }
             base.GameplayUpdate();
         }
 
+        private void OnGUI()
+        {
+            if (HasVocalFx && !GameManager.Paused)
+                _wheel.Draw(Player.Profile.Name, _singerIndex, _vocalSlots);
+        }
+
+        private int _vocalSlots;
         private VocalNote _lastTargetNote;
         private double?   _lastHitTime;
         private double?   _lastSingTime;
@@ -234,6 +236,8 @@ namespace YARG.Gameplay.Player
                 if (!player.Profile.IsBot)
                 {
                     _singerIndex = vocalIndex;
+                    _wheel = new VocalFxWheel();
+                    _vocalSlots = GameManager.YargPlayers.Count(p => p.Profile.GameMode == GameMode.Vocals);
                     _vocalFx = GameManager.VocalFx;
                 }
             }
@@ -254,6 +258,7 @@ namespace YARG.Gameplay.Player
         protected override void FinishDestruction()
         {
             _inputContext?.Stop();
+            _wheel?.Dispose();
             if (HasVocalFx)
             {
                 foreach (var device in Player.DeviceInfo.Microphones)
