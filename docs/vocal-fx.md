@@ -1,0 +1,37 @@
+# Vocal FX prototype
+
+During a song, open **Pause → Settings → Audio Settings**. Select a singer's Vocal FX row to cycle through Auto, Standard, Reverb, Delay and Distortion. Each live singer with an assigned microphone gets a row. The choice lasts for this song session. Use headphones and the existing Monitoring control to hear the live mic.
+
+Auto starts with YARG's usual monitor sound. For an unpacked song folder, save the following as **vocal-fx.json** alongside the chart, then start the song. The first list controls the first singer in vocal-player order. An empty list can reserve a slot. All microphones assigned to one singer receive that singer's preset.
+
+```json
+[
+  [
+    { "time": 5, "preset": "Reverb" },
+    { "time": 10, "preset": "Delay" },
+    { "time": 15, "preset": "Distortion" },
+    { "time": 20, "preset": "Standard" }
+  ],
+  [
+    { "time": 10, "preset": "Reverb" },
+    { "time": 20, "preset": "Standard" }
+  ]
+]
+```
+
+Use increasing chart times in seconds. A cue takes effect at its timestamp and lasts until the next cue. A missing list, absent file or position before the first cue uses Standard. An invalid file falls back to Standard in Auto. Packaged songs support manual presets. Only folder-based INI entries load a sidecar.
+
+## Audio and timing
+
+Shared capture, WASAPI and ASIO feed per-microphone BASS split streams. Vocal FX changes the live monitor split registered with the output router. The analyzer still reads the existing analysis split, including its input EQ, and recordings keep their existing dry/processed routing.
+
+Standard uses the existing monitor EQ, dynamics, short echo and configured reverb level. Reverb raises the native reverb wet mix. Delay changes the existing echo to a 300 ms repeat. Distortion attaches a BASS FX drive before the final monitor limiter. The feature adds no capture stream, look-ahead buffer or managed audio callback.
+
+The game loads the cue lists once per song with a live singer. Each gameplay update resolves the most recent cue against SongRunner's calibrated SongTime. Absolute lookup supports practice loops, pause rewinds, skips and speed changes. Cue resolution is frame-granular. Returning to Auto from a manual preset resolves the current position immediately.
+
+## Listening check
+
+1. Load the example with two microphone profiles. Sing into each separately at 12 seconds. Singer one should have a distinct repeat and singer two should have a reverb tail.
+2. Set singer one to Distortion in Audio Settings. Resume and cross 20 seconds. Singer one's manual choice should persist while singer two returns to Standard.
+3. Return singer one to Auto and seek backwards across 10 seconds in practice. Listen for the changes at the same chart positions at half speed.
+4. Exit the song with a manual effect active, then start a song without a sidecar. Both monitors should return to the standard sound.
